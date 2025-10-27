@@ -1,45 +1,59 @@
+import { User } from 'src/user/entities/user.entity';
 import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
   ManyToOne,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Book } from './book.entity';
-import { User } from 'src/user/entities/user.entity';
 
 @Entity('book_progress')
 export class BookProgress {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ default: 0 })
-  currentPage: number;
-
-  @Column({ nullable: true })
-  totalPages: number;
-
-  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
-  progressPercentage: number;
-
-  @Column({ nullable: true })
-  lastReadChapter: string;
-
+  // Para EPUBs
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  currentCFI: string | null; // Canonical Fragment Identifier
 
-  @Column({ nullable: true })
-  timeSpentReading: number; // in minutes
+  @Column({ type: 'int', nullable: true })
+  currentLocation: number | null; // Ubicación actual
 
-  @Column({ default: false })
+  @Column({ type: 'int', nullable: true })
+  totalLocations: number | null; // Total de ubicaciones
+
+  // Para PDFs
+  @Column({ type: 'int', nullable: true })
+  currentPage: number | null;
+
+  @Column({ type: 'int', nullable: true })
+  totalPages: number | null;
+
+  // Universal
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+  progressPercentage: number; // 0-100
+
+  @Column({ type: 'boolean', default: false })
   isCompleted: boolean;
 
-  @Column({ nullable: true, type: 'timestamp' })
-  lastReadAt: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  lastReadAt: Date | null;
 
-  @Column({ nullable: true, type: 'timestamp' })
-  completedAt: Date;
+  @Column({ type: 'varchar', nullable: true })
+  lastReadChapter: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  timeSpentReading: number | null; // in minutes
+
+  @Column({ type: 'timestamp', nullable: true })
+  completedAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -47,15 +61,16 @@ export class BookProgress {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @ManyToOne(() => Book, (book) => book.bookProgress, { eager: false })
+  @OneToOne(() => Book, (book) => book.bookProgress, {
+    cascade: true,
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn()
   book: Book;
 
-  @Column()
-  bookId: number;
-
-  @ManyToOne(() => User, (user) => user.bookProgress, { eager: false })
+  @ManyToOne(() => User, (user) => user.bookProgress, {
+    cascade: true,
+    onDelete: 'CASCADE',
+  })
   user: User;
-
-  @Column()
-  userId: number;
 }

@@ -1,15 +1,23 @@
+import { User } from 'src/user/entities/user.entity';
 import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinTable,
+  ManyToMany,
   ManyToOne,
-  OneToMany,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from 'src/user/entities/user.entity';
 import { BookProgress } from './book-progress.entity';
+import { Collection } from './collection.entity';
 
+export enum ReadingStatus {
+  UNREAD = 'unread',
+  READING = 'reading',
+  COMPLETED = 'completed',
+}
 @Entity('books')
 export class Book {
   @PrimaryGeneratedColumn()
@@ -34,7 +42,7 @@ export class Book {
   publishedDate: Date;
 
   @Column({ nullable: true })
-  coverUrl: string;
+  coverPath: string;
 
   @Column({ nullable: true })
   coverPublicId: string;
@@ -42,8 +50,15 @@ export class Book {
   @Column({ nullable: true })
   pageCount: number;
 
-  @Column({ default: 'unread' })
-  readingStatus: string; // 'unread', 'reading', 'completed'
+  @Column()
+  filePath: string;
+
+  @Column({
+    type: 'enum',
+    enum: ReadingStatus,
+    default: ReadingStatus.UNREAD,
+  })
+  readingStatus: ReadingStatus;
 
   @Column({ nullable: true })
   rating: number;
@@ -54,12 +69,16 @@ export class Book {
   @UpdateDateColumn()
   updatedAt: Date;
 
+  @Column({ type: 'varchar', length: 10 })
+  fileType: 'epub' | 'pdf';
+
   @ManyToOne(() => User, (user) => user.books, { eager: false })
   owner: User;
 
-  @Column()
-  ownerId: number;
+  @OneToOne(() => BookProgress, (progress) => progress.book)
+  bookProgress: BookProgress;
 
-  @OneToMany(() => BookProgress, (progress) => progress.book)
-  bookProgress: BookProgress[];
+  @ManyToMany(() => Collection, (collection) => collection.books)
+  @JoinTable()
+  collections: Collection[];
 }

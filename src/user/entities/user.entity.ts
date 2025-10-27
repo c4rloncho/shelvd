@@ -1,5 +1,6 @@
 import { BookProgress } from 'src/book/entities/book-progress.entity';
 import { Book } from 'src/book/entities/book.entity';
+import { Collection } from 'src/book/entities/collection.entity';
 import {
   Column,
   CreateDateColumn,
@@ -13,9 +14,6 @@ import {
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
-
-  @Column()
-  fullname: string;
 
   @Column({ unique: true })
   username: string;
@@ -37,6 +35,9 @@ export class User {
 
   @OneToMany(() => BookProgress, (bookProgress) => bookProgress.user)
   bookProgress: BookProgress[];
+
+  @OneToMany(() => Collection, (collection) => collection.owner)
+  collections: Collection[];
 
   @Column({ nullable: true })
   avatarUrl?: string;
