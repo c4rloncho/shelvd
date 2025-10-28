@@ -15,7 +15,7 @@ const databaseConfig: TypeOrmModuleOptions = {
   migrationsTableName: 'migrations',
   migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
   autoLoadEntities: true,
-  synchronize: process.env.NODE_ENV !== 'production',
+  synchronize: true, // Temporal: crear tablas en producción
   logging: ['error', 'warn'],
   logger: 'advanced-console',
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
