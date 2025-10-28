@@ -8,26 +8,28 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 import { User } from 'src/user/entities/user.entity';
+import { UserService } from 'src/user/user.service';
 import { In, Repository } from 'typeorm';
 import { CreateCollectionDto } from './dto/create-collection.dto';
 import { BookProgress } from './entities/book-progress.entity';
 import { Book, ReadingStatus } from './entities/book.entity';
 import { Collection } from './entities/collection.entity';
-import { SupabaseService } from './supabase.service';
+import { R2Service } from './r2.service';
+import * as pdfParse from 'pdf-parse';
 
 const EPub = require('epub');
-const pdfParse = require('pdf-parse');
 
 @Injectable()
 export class BookService {
   constructor(
     @InjectRepository(Book)
     private bookRepository: Repository<Book>,
-    private supabaseService: SupabaseService,
+    private r2Service: R2Service,
     @InjectRepository(BookProgress)
     private bookProgressRepository: Repository<BookProgress>,
     @InjectRepository(Collection)
     private collectionRepository: Repository<Collection>,
+    private userService: UserService,
   ) {}
 
   // ==================== FUNCIONES AUXILIARES ====================
@@ -36,14 +38,14 @@ export class BookService {
    * Agrega URLs firmadas a un libro individual
    */
   private async addSignedUrlsToBook(book: Book) {
-    const bookUrl = await this.supabaseService.getSignedUrl(
+    const bookUrl = await this.r2Service.getSignedUrl(
       book.filePath,
       10800, // 3 horas
     );
 
     let coverUrl: { signedUrl: string; expiresAt: Date } | null = null;
     if (book.coverPath) {
-      coverUrl = await this.supabaseService.getSignedUrl(
+      coverUrl = await this.r2Service.getSignedUrl(
         book.coverPath,
         7200, // 2 horas
       );
@@ -70,10 +72,19 @@ export class BookService {
   // ==================== CRUD DE LIBROS ====================
 
   async create(file: Express.Multer.File, userId: number) {
-    // 1. Subir archivo a Supabase
-    const uploadResult = await this.supabaseService.uploadFile(file, 'books');
+    // 1. Verificar límite de libros del usuario
+    const user = await this.userService.findOne(userId);
 
-    // 2. Extraer metadata según el tipo de archivo
+    if (user.books.length >= user.maxBooks) {
+      throw new BadRequestException(
+        `Has alcanzado el límite de ${user.maxBooks} libros. No puedes subir más libros.`,
+      );
+    }
+
+    // 2. Subir archivo a R2
+    const uploadResult = await this.r2Service.uploadFile(file, 'books');
+
+    // 3. Extraer metadata según el tipo de archivo
     const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
 
     let metadata;
@@ -85,7 +96,7 @@ export class BookService {
       const epubData = await this.extractEpubMetadata(file.buffer);
       metadata = epubData.metadata;
 
-      // 3. Subir portada si existe
+      // 4. Subir portada si existe
       if (epubData.coverBuffer) {
         const coverFile = {
           buffer: epubData.coverBuffer,
@@ -93,7 +104,7 @@ export class BookService {
           mimetype: 'image/jpeg',
         } as Express.Multer.File;
 
-        const coverUpload = await this.supabaseService.uploadFile(
+        const coverUpload = await this.r2Service.uploadFile(
           coverFile,
           'covers',
         );
@@ -107,7 +118,7 @@ export class BookService {
       throw new Error('Formato no soportado');
     }
 
-    // 4. Crear y guardar libro en base de datos
+    // 5. Crear y guardar libro en base de datos
     const book = this.bookRepository.create({
       title: metadata.title || file.originalname,
       description: metadata.description || '',
@@ -125,7 +136,7 @@ export class BookService {
 
     const savedBook = await this.bookRepository.save(book);
 
-    // 5. Crear book-progress según el tipo de archivo
+    // 6. Crear book-progress según el tipo de archivo
     const bookProgress = new BookProgress();
     bookProgress.book = savedBook;
     bookProgress.progressPercentage = 0;
@@ -196,12 +207,12 @@ export class BookService {
       throw new NotFoundException('Libro no encontrado o no tienes permisos');
     }
 
-    // Eliminar archivo del libro de Supabase Storage
-    await this.supabaseService.deleteFile(book.filePath);
+    // Eliminar archivo del libro de R2 Storage
+    await this.r2Service.deleteFile(book.filePath);
 
     // Eliminar portada si existe
     if (book.coverPath) {
-      await this.supabaseService.deleteFile(book.coverPath);
+      await this.r2Service.deleteFile(book.coverPath);
     }
 
     await this.bookRepository.remove(book);
@@ -602,18 +613,33 @@ export class BookService {
   }
 
   private async extractPdfMetadata(buffer: Buffer) {
-    const data = await pdfParse(buffer);
+    // Usar la clase PDFParse del módulo
+    const PDFParser = (pdfParse as any).PDFParse;
+    const parser = new PDFParser({ data: buffer });
+
+    // Cargar y obtener información del PDF
+    await parser.load();
+    const info = await parser.getInfo();
+    const text = await parser.getText();
+
+    // Parsear la fecha correctamente
+    let publishedDate: Date | null = null;
+    if (info.info?.CreationDate) {
+      const parsedDate = new Date(info.info.CreationDate);
+      // Verificar que la fecha sea válida
+      if (!isNaN(parsedDate.getTime())) {
+        publishedDate = parsedDate;
+      }
+    }
 
     return {
-      title: data.info?.Title || '',
-      author: data.info?.Author || '',
-      description: data.info?.Subject || '',
-      publisher: data.info?.Producer || null,
-      publishedDate: data.info?.CreationDate
-        ? new Date(data.info.CreationDate)
-        : null,
+      title: info.info?.Title || '',
+      author: info.info?.Author || '',
+      description: info.info?.Subject || '',
+      publisher: info.info?.Producer || null,
+      publishedDate: publishedDate,
       isbn: null,
-      pageCount: data.numpages || null,
+      pageCount: info.numPages || null,
     };
   }
 }

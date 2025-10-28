@@ -44,4 +44,7 @@ export class User {
 
   @Column({ nullable: true })
   avatarPublicId?: string;
+
+  @Column({ default: 10 })
+  maxBooks: number;
 }

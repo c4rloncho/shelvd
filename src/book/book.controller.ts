@@ -35,7 +35,7 @@ export class BookController {
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 }),
+          new MaxFileSizeValidator({ maxSize: 30 * 1024 * 1024 }), // 30MB máximo por archivo
           new FileTypeValidator({
             fileType:
               /(application\/epub\+zip|application\/pdf|application\/x-mobipocket-ebook)/,
