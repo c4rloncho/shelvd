@@ -72,6 +72,9 @@ export class Book {
   @Column({ type: 'varchar', length: 10 })
   fileType: 'epub' | 'pdf';
 
+  @Column({ default: false })
+  isFavorite: boolean;
+
   @ManyToOne(() => User, (user) => user.books, { eager: false })
   owner: User;
 

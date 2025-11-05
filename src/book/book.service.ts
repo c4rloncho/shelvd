@@ -495,6 +495,76 @@ export class BookService {
     };
   }
 
+  // ==================== FAVORITOS ====================
+
+  async addToFavorites(bookId: number, userId: number) {
+    const book = await this.bookRepository.findOne({
+      where: { id: bookId, owner: { id: userId } },
+    });
+
+    if (!book) {
+      throw new NotFoundException('Libro no encontrado o no tienes permisos');
+    }
+
+    if (book.isFavorite) {
+      throw new BadRequestException('El libro ya está en favoritos');
+    }
+
+    book.isFavorite = true;
+    await this.bookRepository.save(book);
+
+    return {
+      message: 'Libro añadido a favoritos exitosamente',
+      book: await this.addSignedUrlsToBook(book),
+    };
+  }
+
+  async removeFromFavorites(bookId: number, userId: number) {
+    const book = await this.bookRepository.findOne({
+      where: { id: bookId, owner: { id: userId } },
+    });
+
+    if (!book) {
+      throw new NotFoundException('Libro no encontrado o no tienes permisos');
+    }
+
+    if (!book.isFavorite) {
+      throw new BadRequestException('El libro no está en favoritos');
+    }
+
+    book.isFavorite = false;
+    await this.bookRepository.save(book);
+
+    return {
+      message: 'Libro removido de favoritos exitosamente',
+      book: await this.addSignedUrlsToBook(book),
+    };
+  }
+
+  async getFavoriteBooks(userId: number, page = 1, limit = 10) {
+    const query = this.bookRepository
+      .createQueryBuilder('book')
+      .leftJoinAndSelect('book.bookProgress', 'bookProgress')
+      .leftJoinAndSelect('book.owner', 'owner')
+      .where('owner.id = :userId', { userId })
+      .andWhere('book.isFavorite = :isFavorite', { isFavorite: true });
+
+    query.orderBy('book.updatedAt', 'DESC');
+    const skip = (page - 1) * limit;
+    query.skip(skip).take(limit);
+
+    const [books, total] = await query.getManyAndCount();
+    const booksWithUrls = await this.addSignedUrlsToBooks(books);
+
+    return {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      data: booksWithUrls,
+    };
+  }
+
   // ==================== EXTRACCIÓN DE METADATA ====================
 
   private async extractEpubMetadata(buffer: Buffer) {

@@ -160,6 +160,30 @@ export class BookController {
 
   // ==================== ENDPOINTS DE LIBROS ====================
 
+  // ==================== FAVORITOS ====================
+
+  @Get('favorites')
+  @UseGuards(AuthGuard('jwt'))
+  async getFavoriteBooks(
+    @Req() req,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+  ) {
+    return await this.bookService.getFavoriteBooks(req.user.id, page, limit);
+  }
+
+  @Post(':id/favorite')
+  @UseGuards(AuthGuard('jwt'))
+  async addToFavorites(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    return await this.bookService.addToFavorites(id, req.user.id);
+  }
+
+  @Delete(':id/favorite')
+  @UseGuards(AuthGuard('jwt'))
+  async removeFromFavorites(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    return await this.bookService.removeFromFavorites(id, req.user.id);
+  }
+
   @Get(':id/progress')
   @UseGuards(AuthGuard('jwt'))
   async getProgress(@Param('id') id: string, @Req() req) {
