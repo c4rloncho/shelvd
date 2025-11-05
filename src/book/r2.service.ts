@@ -8,9 +8,10 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IStorageService } from './storage.interface';
 
 @Injectable()
-export class R2Service {
+export class R2Service implements IStorageService {
   private s3Client: S3Client;
   private bucketName: string;
 
@@ -31,7 +32,7 @@ export class R2Service {
     file: Express.Multer.File,
     folder: string = 'general',
     bucket?: string,
-  ) {
+  ): Promise<{ path: string; fullPath: string }> {
     const bucketName = bucket ?? this.bucketName;
 
     // Sanitizar nombre del archivo
@@ -61,7 +62,7 @@ export class R2Service {
     filePath: string,
     expiresIn: number = 3600, // 1 hora por defecto
     bucket?: string,
-  ) {
+  ): Promise<{ signedUrl: string; expiresAt: Date }> {
     const bucketName = bucket ?? this.bucketName;
 
     try {
@@ -85,15 +86,24 @@ export class R2Service {
     }
   }
 
-  async getCoverSignedUrl(filePath: string) {
+  async getCoverSignedUrl(filePath: string): Promise<{
+    signedUrl: string;
+    expiresAt: Date;
+  }> {
     return this.getSignedUrl(filePath, 28800); // 8 horas para covers
   }
 
-  async getBookSignedUrl(filePath: string) {
+  async getBookSignedUrl(filePath: string): Promise<{
+    signedUrl: string;
+    expiresAt: Date;
+  }> {
     return this.getSignedUrl(filePath, 28800); // 8 horas para libros
   }
 
-  async deleteFile(filePath: string, bucket?: string) {
+  async deleteFile(
+    filePath: string,
+    bucket?: string,
+  ): Promise<{ success: boolean }> {
     const bucketName = bucket ?? this.bucketName;
 
     try {

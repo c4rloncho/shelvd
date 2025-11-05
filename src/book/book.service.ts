@@ -1,6 +1,7 @@
 // book.service.ts
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,7 +15,7 @@ import { CreateCollectionDto } from './dto/create-collection.dto';
 import { BookProgress } from './entities/book-progress.entity';
 import { Book, ReadingStatus } from './entities/book.entity';
 import { Collection } from './entities/collection.entity';
-import { R2Service } from './r2.service';
+import { IStorageService } from './storage.interface';
 import * as pdfParse from 'pdf-parse';
 
 const EPub = require('epub');
@@ -24,7 +25,8 @@ export class BookService {
   constructor(
     @InjectRepository(Book)
     private bookRepository: Repository<Book>,
-    private r2Service: R2Service,
+    @Inject('STORAGE_SERVICE')
+    private storageService: IStorageService,
     @InjectRepository(BookProgress)
     private bookProgressRepository: Repository<BookProgress>,
     @InjectRepository(Collection)
@@ -38,14 +40,14 @@ export class BookService {
    * Agrega URLs firmadas a un libro individual
    */
   private async addSignedUrlsToBook(book: Book) {
-    const bookUrl = await this.r2Service.getSignedUrl(
+    const bookUrl = await this.storageService.getSignedUrl(
       book.filePath,
       10800, // 3 horas
     );
 
     let coverUrl: { signedUrl: string; expiresAt: Date } | null = null;
     if (book.coverPath) {
-      coverUrl = await this.r2Service.getSignedUrl(
+      coverUrl = await this.storageService.getSignedUrl(
         book.coverPath,
         7200, // 2 horas
       );
@@ -81,8 +83,8 @@ export class BookService {
       );
     }
 
-    // 2. Subir archivo a R2
-    const uploadResult = await this.r2Service.uploadFile(file, 'books');
+    // 2. Subir archivo
+    const uploadResult = await this.storageService.uploadFile(file, 'books');
 
     // 3. Extraer metadata según el tipo de archivo
     const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
@@ -104,7 +106,7 @@ export class BookService {
           mimetype: 'image/jpeg',
         } as Express.Multer.File;
 
-        const coverUpload = await this.r2Service.uploadFile(
+        const coverUpload = await this.storageService.uploadFile(
           coverFile,
           'covers',
         );
@@ -207,12 +209,12 @@ export class BookService {
       throw new NotFoundException('Libro no encontrado o no tienes permisos');
     }
 
-    // Eliminar archivo del libro de R2 Storage
-    await this.r2Service.deleteFile(book.filePath);
+    // Eliminar archivo del libro
+    await this.storageService.deleteFile(book.filePath);
 
     // Eliminar portada si existe
     if (book.coverPath) {
-      await this.r2Service.deleteFile(book.coverPath);
+      await this.storageService.deleteFile(book.coverPath);
     }
 
     await this.bookRepository.remove(book);
