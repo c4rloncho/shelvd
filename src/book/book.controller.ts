@@ -172,6 +172,12 @@ export class BookController {
     return await this.bookService.getFavoriteBooks(req.user.id, page, limit);
   }
 
+  @Post('complete/:id')
+  @UseGuards(AuthGuard('jwt'))
+  async completeBook(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    return await this.bookService.completeBook(id, req.user.id);
+  }
+
   @Post(':id/favorite')
   @UseGuards(AuthGuard('jwt'))
   async addToFavorites(@Param('id', ParseIntPipe) id: number, @Req() req) {

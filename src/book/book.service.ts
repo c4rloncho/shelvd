@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as pdfParse from 'pdf-parse';
 import { User } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 import { In, Repository } from 'typeorm';
@@ -16,7 +17,6 @@ import { BookProgress } from './entities/book-progress.entity';
 import { Book, ReadingStatus } from './entities/book.entity';
 import { Collection } from './entities/collection.entity';
 import { IStorageService } from './storage.interface';
-import * as pdfParse from 'pdf-parse';
 
 const EPub = require('epub');
 
@@ -713,5 +713,20 @@ export class BookService {
       isbn: null,
       pageCount: info.numPages || null,
     };
+  }
+  async completeBook(bookId: number, userId: number) {
+    const book = await this.bookRepository.findOne({
+      where: { id: bookId, owner: { id: userId } },
+      relations: ['bookProgress'],
+    });
+
+    if (!book) {
+      throw new NotFoundException('Libro no encontrado');
+    }
+
+    book.bookProgress.isCompleted = true;
+    book.readingStatus = ReadingStatus.COMPLETED;
+    await this.bookRepository.save(book);
+    return book;
   }
 }
